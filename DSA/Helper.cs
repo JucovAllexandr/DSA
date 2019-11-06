@@ -9,6 +9,7 @@ namespace DSA
         static public Org.BouncyCastle.Math.BigInteger GenerateBigIntegerPrimes(int bits)
         {
             Org.BouncyCastle.Security.SecureRandom ran = new Org.BouncyCastle.Security.SecureRandom();
+            
             Org.BouncyCastle.Math.BigInteger c = new Org.BouncyCastle.Math.BigInteger(bits, ran);
             
             for (; ; )
@@ -18,7 +19,7 @@ namespace DSA
             }
             return (c);
         }
-
+        
         static public Org.BouncyCastle.Math.BigInteger GenerateBigIntegerP(int bits, BigInteger q)
         {
             Org.BouncyCastle.Security.SecureRandom ran = new Org.BouncyCastle.Security.SecureRandom();

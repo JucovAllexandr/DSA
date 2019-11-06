@@ -22,7 +22,7 @@ namespace DSA
             Console.WriteLine("p = "+p);*/
 
           DSA.GenerateSignature();
-          DSA.checkSignature(DSA.Signature, DSA.PublicKey);
+          DSA.checkSignature(DSA.Signature, DSA.publicKey);
         }
     }
 }
