@@ -11,7 +11,7 @@ namespace DSA
     {
         static void Main(string[] args)
         {
-            byte[] bytes = Encoding.UTF8.GetBytes("My Content Thanks");
+          /*  byte[] bytes = Encoding.UTF8.GetBytes("My Content Thanks");
             SHA1 sha1 = new SHA1Managed();
             Console.Out.WriteLine(BitConverter.ToString(sha1.ComputeHash(bytes)).Replace("-",""));
 
@@ -19,7 +19,10 @@ namespace DSA
             Console.WriteLine("q = "+q);
             BigInteger p = Helper.GenerateBigIntegerP(1024, q);
             
-            Console.WriteLine("p = "+p);
+            Console.WriteLine("p = "+p);*/
+
+          DSA.GenerateSignature();
+          DSA.checkSignature(DSA.Signature, DSA.PublicKey);
         }
     }
 }
