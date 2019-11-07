@@ -25,9 +25,21 @@ namespace DSA
         public static bool GenerateSignature()
         {
             PublicKey pb = new PublicKey();
-            GeneratePQ();
-            pb.p = new BigInteger("283");
-            pb.q = new BigInteger("47");
+            if (GeneratePQ())
+            {
+                Console.WriteLine("Generated q = " + publicKey.q);
+                Console.WriteLine("Generated p = " + publicKey.p);
+                pb.p = publicKey.p;
+                pb.q = publicKey.q;
+            }
+            else
+            {
+                return false;
+            }
+
+            //pb.p = new BigInteger("283");
+            //pb.q = new BigInteger("47");
+            
             pb.g = pow(new BigInteger("40"), pb.p.Subtract(BigInteger.One).Divide(pb.q)).Mod(pb.p);//new BigInteger("60");
             
             Console.WriteLine("g="+pb.g);
@@ -112,60 +124,132 @@ namespace DSA
             return false;
         }
 
-        private static BigInteger pow(BigInteger a, BigInteger n)
+        private static BigInteger pow(BigInteger a, BigInteger _pow)
         {
-            BigInteger v = BigInteger.One;
+            Console.WriteLine("a^pow a="+a+"; n="+_pow);
+            BigInteger res = BigInteger.One;
 
-            for (BigInteger i = BigInteger.Zero; i.CompareTo(n) == -1; i = i.Add(BigInteger.One))
+            /*for (BigInteger i = BigInteger.Zero; i.CompareTo(n) == -1; i = i.Add(BigInteger.One))
             {
                 v = v.Multiply(a);
-            }
+            }*/
 
-            return v;
+            while (_pow.CompareTo(BigInteger.Zero) == 1)
+            {
+                if (_pow.Mod(BigInteger.Two).CompareTo(BigInteger.One) == 0)
+                {
+                    res = res.Multiply(a);
+                }
+                res = res.Multiply(a);
+                _pow = _pow.Divide(BigInteger.Two);
+            }
+            
+
+            return res;
         }
 
-        private static void GeneratePQ()
+        private static bool GeneratePQ()
         {
-            BigInteger q = BigInteger.Zero;
-            int n = 50;
-            BigInteger rightVal = BigInteger.Two.Pow(159);
-            BigInteger leftVal = BigInteger.Two.Pow(160);
-            SHA1 sha1 = new SHA1CryptoServiceProvider();
-            BigInteger seed;
-            int g = 160;
-            
-            do
+            PublicKey PK = publicKey;
+            while (true)
             {
-                Org.BouncyCastle.Security.SecureRandom ran = new Org.BouncyCastle.Security.SecureRandom();
-                seed = new BigInteger(g, ran);
+                BigInteger q = BigInteger.Zero;
+                BigInteger p = BigInteger.Zero;
+                int n = 6;
+                BigInteger rightVal = BigInteger.Two.Pow(159);
+                BigInteger leftVal = BigInteger.Two.Pow(160);
+                SHA1 sha1 = new SHA1CryptoServiceProvider();
+                BigInteger seed;
+                int g = 160;
 
-                BigInteger u_1 = new BigInteger(sha1.ComputeHash(seed.ToByteArray()));
-                BigInteger u_2 = new BigInteger(sha1.ComputeHash(seed.Add(BigInteger.One).Mod(BigInteger.Two.Pow(g)).ToByteArray()));
-                BigInteger u = u_1.Xor(u_2);
+                int L = 1024;
+                int b = 63;
+                int LM = 160 * n + b;
 
-                q = u.Or(BigInteger.Two.Pow(159)).Or(BigInteger.One);
-                
-            } while (!q.IsProbablePrime(100) && (q.CompareTo(rightVal) == 0 || q.CompareTo(rightVal) == -1 || q.CompareTo(leftVal) == 0 || q.CompareTo(leftVal) == 1));
-            
-            Console.WriteLine("Generated q = "+q);
+                BigInteger twoPowL = BigInteger.Two.Pow(L);
+                BigInteger twoPowLm1 = BigInteger.Two.Pow(LM);
 
-            BigInteger offset = BigInteger.Two;
-            BigInteger w = BigInteger.Zero;
-            for (int k = 0; k <= n; k++)
-            {
-                BigInteger v = new BigInteger(sha1.ComputeHash(seed.Add(offset).Add(new BigInteger(k.ToString())).Mod(BigInteger.Two.Pow(g)).ToByteArray()));
-                if (k == n)
+                do
                 {
-                    w = w.Add(v);
-                }
-                else
-                {
-                    w = w.Add(v);
-                }
+                    Org.BouncyCastle.Security.SecureRandom ran = new Org.BouncyCastle.Security.SecureRandom();
+                    seed = new BigInteger(g, ran);
+
+                    BigInteger u_1 = new BigInteger(sha1.ComputeHash(seed.ToByteArray()));
+                    BigInteger u_2 =
+                        new BigInteger(sha1.ComputeHash(seed.Add(BigInteger.One).Mod(BigInteger.Two.Pow(g))
+                            .ToByteArray()));
+                    BigInteger u = u_1.Xor(u_2);
+
+                    q = u.Or(BigInteger.Two.Pow(159)).Or(BigInteger.One);
+
+                } while (!q.IsProbablePrime(100) && (q.CompareTo(rightVal) == 0 || q.CompareTo(rightVal) == -1 ||
+                                                     q.CompareTo(leftVal) == 0 || q.CompareTo(leftVal) == 1));
 
                 
+
+                BigInteger offset = BigInteger.Two;
+                BigInteger counter = BigInteger.Zero;
+
+                while (counter.CompareTo(new BigInteger("4096")) == -1)
+                {
+                    BigInteger w = BigInteger.Zero;
+
+
+                    for (int k = 0; k <= n; k++)
+                    {
+                        BigInteger v = new BigInteger(sha1.ComputeHash(seed.Add(offset)
+                            .Add(new BigInteger(k.ToString()))
+                            .Mod(BigInteger.Two.Pow(g)).ToByteArray()));
+                        if (k == n)
+                        {
+                            w = w.Add(v).Mod(BigInteger.Two.Pow(b)).Multiply(BigInteger.Two.Pow(n * 160));
+                        }
+                        else
+                        {
+                            w = w.Add(v).Multiply(BigInteger.Two.Pow(k * 160));
+                        }
+                    }
+
+
+                    if (w.CompareTo(BigInteger.Zero) == -1 || w.CompareTo(twoPowLm1) == 1 ||
+                        w.CompareTo(twoPowLm1) == 0)
+                    {
+                        //Console.WriteLine("2^(L-1) =" + twoPowLm1);
+                        Console.WriteLine("Bad W = " + w);
+                        return false;
+                    }
+
+                    //Console.WriteLine("W = " + w);
+
+                    BigInteger x = w.Add(twoPowLm1);
+
+                    if (x.CompareTo(twoPowLm1) == -1 || x.CompareTo(twoPowL) == 1 || x.CompareTo(twoPowL) == 0)
+                    {
+                        Console.WriteLine("Bad X = " + x);
+                        return false;
+                    }
+
+                    //Console.WriteLine("X = " + x);
+
+                    BigInteger c = x.Mod(BigInteger.Two.Multiply(q));
+                    p = x.Subtract(c.Subtract(BigInteger.One));
+
+                    if (p.CompareTo(twoPowLm1) == 1)
+                    {
+                        if (p.IsProbablePrime(100))
+                        {
+                            PK.p = p;
+                            PK.q = q;
+                            publicKey = PK;
+                            return true;
+                        }
+                    }
+
+                    offset = offset.Add(new BigInteger(n.ToString())).Add(BigInteger.One);
+                    counter = counter.Add(BigInteger.One);
+                }
             }
-
+            
         }
     }
 }
