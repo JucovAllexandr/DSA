@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
+using System.Text;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Math;
 
@@ -18,33 +19,48 @@ namespace DSA
             public BigInteger y;
         }
         
-        public static PublicKey publicKey { get; private set; }
+        private struct PrivateKey
+        {
+            public BigInteger x;
+            public BigInteger k;
+        }
         
+        static SHA1 sha1 = new SHA1CryptoServiceProvider();
+        
+        public static PublicKey publicKey { get; private set; }
+        private static PrivateKey privateKey { get;  set; }
+        
+        private static Random random = new Random();
         
         public static Tuple<BigInteger, BigInteger> Signature { get; set; }
         public static bool GenerateSignature()
         {
-            PublicKey pb = new PublicKey();
-            if (GeneratePQ())
+            if (GenerateKeys())
             {
                 Console.WriteLine("Generated q = " + publicKey.q);
                 Console.WriteLine("Generated p = " + publicKey.p);
-                pb.p = publicKey.p;
-                pb.q = publicKey.q;
             }
             else
             {
                 return false;
             }
 
+            BigInteger r = pow(publicKey.g, privateKey.k).Mod(publicKey.q);
+            
+            BigInteger km = privateKey.k.ModInverse(publicKey.q);
+            BigInteger shaM = new BigInteger(sha1.ComputeHash(Encoding.ASCII.GetBytes("123")));
+
+            BigInteger s = km.Multiply(shaM.Add(privateKey.x.Multiply(r))).Mod(publicKey.q);
+
+            Signature  = new Tuple<BigInteger, BigInteger>(r,s);
             //pb.p = new BigInteger("283");
             //pb.q = new BigInteger("47");
             
-            pb.g = pow(new BigInteger("40"), pb.p.Subtract(BigInteger.One).Divide(pb.q)).Mod(pb.p);//new BigInteger("60");
+            //pb.g = pow(new BigInteger("40"), pb.p.Subtract(BigInteger.One).Divide(pb.q)).Mod(pb.p);//new BigInteger("60");
             
-            Console.WriteLine("g="+pb.g);
+            //Console.WriteLine("g="+pb.g);
             
-            BigInteger a = new BigInteger("24");
+         /*   BigInteger a = new BigInteger("24");
             
             pb.y = pow(pb.g, a).Mod(pb.p);
             Console.WriteLine("Y (pb)=" + pb.y);
@@ -67,17 +83,12 @@ namespace DSA
                 return false;
             }
 
-            BigInteger km = k.ModInverse(pb.q);
             
-            Console.WriteLine("k^-1 mod q="+km.ToString());
-
-            BigInteger s = km.Multiply(h.Add(a.Multiply(r))).Mod(pb.q);
 
             Signature = new Tuple<BigInteger, BigInteger>(r,s);
             
-            Console.WriteLine("s="+s.ToString());
+            Console.WriteLine("s="+s.ToString());*/
 
-            publicKey = pb;
             //Console.WriteLine(pow(BigInteger.Two, BigInteger.Two).ToString()); 
             return true;
         }
@@ -89,7 +100,7 @@ namespace DSA
             //BigInteger g = new BigInteger("64");
             
             //BigInteger a = new BigInteger("158");
-            BigInteger h = new BigInteger("41");
+            BigInteger h = new BigInteger(sha1.ComputeHash(Encoding.ASCII.GetBytes("123")));
             
             BigInteger r = signature.Item1;
 
@@ -128,12 +139,7 @@ namespace DSA
         {
             Console.WriteLine("a^pow a="+a+"; n="+_pow);
             BigInteger res = BigInteger.One;
-
-            /*for (BigInteger i = BigInteger.Zero; i.CompareTo(n) == -1; i = i.Add(BigInteger.One))
-            {
-                v = v.Multiply(a);
-            }*/
-
+            
             while (_pow.CompareTo(BigInteger.Zero) == 1)
             {
                 if (_pow.Mod(BigInteger.Two).CompareTo(BigInteger.One) == 0)
@@ -148,44 +154,96 @@ namespace DSA
             return res;
         }
 
-        private static bool GeneratePQ()
+        private static bool GenerateKeys()
         {
-            PublicKey PK = publicKey;
+            PublicKey PK = new PublicKey();
+            PrivateKey PRK = new PrivateKey();
+            
+            int L = 1024;
+            int N = 160;
+            BigInteger q = BigInteger.ProbablePrime(160, random);
+            BigInteger p;
+            do
+            {
+                p = BigInteger.ProbablePrime(L, random);
+                p = p.Subtract(p.Subtract(BigInteger.One).Remainder(q));
+            }
+            while (!(p.IsProbablePrime(4)));
+
+            PK.p = p;
+            PK.q = q;
+
+            BigInteger h;
+
             while (true)
+            {
+                h = new BigInteger(L, random);
+                if (h.CompareTo(p.Subtract(BigInteger.One)) == -1 && h.CompareTo(BigInteger.One) == 1)
+                {
+                    h = pow(h, p.Subtract(BigInteger.One).Divide(q)).Mod(p);
+                    if (h.CompareTo(BigInteger.One) == 1)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            PK.g = h;
+
+            do {
+                PRK.x = new BigInteger(N, random);
+            } while (PRK.x.CompareTo(q) == 1 || PRK.x.CompareTo(BigInteger.Zero) == -1);
+
+            PK.y = pow(PK.g, PRK.x).Mod(p);
+            
+            do {
+                PRK.k = new BigInteger(N, random);
+            } while (PRK.x.CompareTo(q) == 1 || PRK.x.CompareTo(BigInteger.Zero) == -1);
+            
+            publicKey = PK;
+            privateKey = PRK;
+            
+           /* while (true)
             {
                 BigInteger q = BigInteger.Zero;
                 BigInteger p = BigInteger.Zero;
-                int n = 6;
+                
                 BigInteger rightVal = BigInteger.Two.Pow(159);
                 BigInteger leftVal = BigInteger.Two.Pow(160);
                 SHA1 sha1 = new SHA1CryptoServiceProvider();
                 BigInteger seed;
                 int g = 160;
-
+                
                 int L = 1024;
-                int b = 63;
-                int LM = 160 * n + b;
+                int n = (L-1) / g;
+                int b = (L-1) % g;
+                //int LM = 160 * n + b;
 
                 BigInteger twoPowL = BigInteger.Two.Pow(L);
-                BigInteger twoPowLm1 = BigInteger.Two.Pow(LM);
+                BigInteger twoPowLm1 = BigInteger.Two.Pow(L-1);
 
                 do
                 {
                     Org.BouncyCastle.Security.SecureRandom ran = new Org.BouncyCastle.Security.SecureRandom();
                     seed = new BigInteger(g, ran);
-
+                    
                     BigInteger u_1 = new BigInteger(sha1.ComputeHash(seed.ToByteArray()));
+                    //Console.WriteLine("u_1="+u_1);
+
                     BigInteger u_2 =
                         new BigInteger(sha1.ComputeHash(seed.Add(BigInteger.One).Mod(BigInteger.Two.Pow(g))
                             .ToByteArray()));
+                    
+                  //  Console.WriteLine("u_2="+u_2);
                     BigInteger u = u_1.Xor(u_2);
-
+                   // Console.WriteLine("u = "+u);
                     q = u.Or(BigInteger.Two.Pow(159)).Or(BigInteger.One);
 
-                } while (!q.IsProbablePrime(100) && (q.CompareTo(rightVal) == 0 || q.CompareTo(rightVal) == -1 ||
+                } while (!q.IsProbablePrime(10) && (q.CompareTo(rightVal) == 0 || q.CompareTo(rightVal) == -1 ||
                                                      q.CompareTo(leftVal) == 0 || q.CompareTo(leftVal) == 1));
 
-                
+                //Console.WriteLine("Seed = "+seed);
+               // Console.WriteLine("q = "+q);
 
                 BigInteger offset = BigInteger.Two;
                 BigInteger counter = BigInteger.Zero;
@@ -234,7 +292,7 @@ namespace DSA
                     BigInteger c = x.Mod(BigInteger.Two.Multiply(q));
                     p = x.Subtract(c.Subtract(BigInteger.One));
 
-                    if (p.CompareTo(twoPowLm1) == 1)
+                    if (p.CompareTo(twoPowLm1) == 1 || p.CompareTo(twoPowLm1) == 0)
                     {
                         if (p.IsProbablePrime(100))
                         {
@@ -248,8 +306,9 @@ namespace DSA
                     offset = offset.Add(new BigInteger(n.ToString())).Add(BigInteger.One);
                     counter = counter.Add(BigInteger.One);
                 }
-            }
-            
+            }*/
+           return true;
+
         }
     }
 }
