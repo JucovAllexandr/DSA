@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using Org.BouncyCastle.Crypto.Digests;
@@ -25,6 +26,8 @@ namespace DSA
             public BigInteger k;
         }
 
+        private static String message;
+        
         static SHA1 sha1 = new SHA1CryptoServiceProvider();
 
         public static PublicKey publicKey { get; private set; }
@@ -34,7 +37,7 @@ namespace DSA
 
         public static Tuple<BigInteger, BigInteger> Signature { get; set; }
 
-        public static bool GenerateSignature()
+        public static bool GenerateSignature(String msg)
         {
             while (true)
             {
@@ -57,41 +60,54 @@ namespace DSA
                 .Mod(publicKey.q); //pow(publicKey.g, privateKey.k).Mod(publicKey.q);
 
             BigInteger km = privateKey.k.ModInverse(publicKey.q);
-            BigInteger shaM = new BigInteger(sha1.ComputeHash(Encoding.ASCII.GetBytes("123")));
+            BigInteger shaM = new BigInteger(sha1.ComputeHash(Encoding.ASCII.GetBytes(msg)));
 
             BigInteger s = km.Multiply(shaM.Add(privateKey.x.Multiply(r))).Mod(publicKey.q);
 
             Signature = new Tuple<BigInteger, BigInteger>(r, s);
 
+            FileStream stream = File.Create("file.sig");
+            stream.Write(Encoding.ASCII.GetBytes(r.ToString()+"\n"));
+            stream.Write(Encoding.ASCII.GetBytes(s.ToString()+"\n"));
+            
+            stream.Write(Encoding.ASCII.GetBytes(publicKey.p.ToString()+"\n"));
+            stream.Write(Encoding.ASCII.GetBytes(publicKey.q.ToString()+"\n"));
+            stream.Write(Encoding.ASCII.GetBytes(publicKey.g.ToString()+"\n"));
+            stream.Write(Encoding.ASCII.GetBytes(publicKey.y.ToString()+"\n"));
+            stream.Write(Encoding.ASCII.GetBytes(msg+"\n"));
+            
+            stream.Flush();
+            stream.Close();
             return true;
         }
 
-        public static bool checkSignature(Tuple<BigInteger, BigInteger> signature, PublicKey pKey)
+        public static bool checkSignature()
         {
-            BigInteger h = new BigInteger(sha1.ComputeHash(Encoding.ASCII.GetBytes("123")));
+            Console.WriteLine("Message: "+message);
+            BigInteger h = new BigInteger(sha1.ComputeHash(Encoding.ASCII.GetBytes(message)));
 
-            BigInteger r = signature.Item1;
+            BigInteger r = Signature.Item1;
 
-            BigInteger s = signature.Item2;
+            BigInteger s = Signature.Item2;
 
-            if (r.CompareTo(pKey.q) != -1 || r.CompareTo(BigInteger.Zero) == 0 ||
-                s.CompareTo(pKey.q) != -1 || s.CompareTo(BigInteger.Zero) == 0)
+            if (r.CompareTo(publicKey.q) != -1 || r.CompareTo(BigInteger.Zero) == 0 ||
+                s.CompareTo(publicKey.q) != -1 || s.CompareTo(BigInteger.Zero) == 0)
             {
                 return false;
             }
 
-            BigInteger w = s.ModInverse(pKey.q);
+            BigInteger w = s.ModInverse(publicKey.q);
             //Console.WriteLine("w="+w.ToString());
 
-            BigInteger u1 = h.Multiply(w).Mod(pKey.q);
+            BigInteger u1 = h.Multiply(w).Mod(publicKey.q);
             //Console.WriteLine("u1="+u1.ToString());
-            BigInteger u2 = r.Multiply(w).Mod(pKey.q);
+            BigInteger u2 = r.Multiply(w).Mod(publicKey.q);
             //Console.WriteLine("u2="+u2.ToString());
 
             //BigInteger x = pow(pKey.g, u1).Multiply(pow(pKey.y, u2)).Mod(pKey.p);
-            BigInteger x = pKey.g.ModPow(u1, pKey.p).Multiply(pKey.y.ModPow(u2, pKey.p)).Mod(pKey.p);
+            BigInteger x = publicKey.g.ModPow(u1, publicKey.p).Multiply(publicKey.y.ModPow(u2, publicKey.p)).Mod(publicKey.p);
             //Console.WriteLine("x="+x.ToString());
-            BigInteger v = x.Mod(pKey.q);
+            BigInteger v = x.Mod(publicKey.q);
 
 
             if (r.CompareTo(v) == 0)
@@ -271,5 +287,32 @@ namespace DSA
             //q = new BigInteger("965374022299544018528982088693838875551253807301");
             //p = new BigInteger("8085529794999426297544118999403491855208277419768638549705160907398560722488833907398861054957260133768843576946761641628972879831456643124215719146511689");
         }
+
+        public static void ReadFile(String filename)
+        {
+            StreamReader stream = File.OpenText(filename);
+
+            
+            BigInteger r = new BigInteger(stream.ReadLine());
+            BigInteger s = new BigInteger(stream.ReadLine());
+            
+            BigInteger p = new BigInteger(stream.ReadLine());
+            BigInteger q = new BigInteger(stream.ReadLine());
+            BigInteger g = new BigInteger(stream.ReadLine());
+            BigInteger y = new BigInteger(stream.ReadLine());
+
+            message = stream.ReadLine();
+
+            Signature = new Tuple<BigInteger, BigInteger>(r, s);
+            
+            PublicKey pb = new PublicKey();
+            pb.p = p;
+            pb.q = q;
+            pb.g = g;
+            pb.y = y;
+
+            publicKey = pb;
+        }
+        
     }
 }
