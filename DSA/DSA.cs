@@ -10,8 +10,6 @@ namespace DSA
 {
     public class DSA
     {
-        //public static BigInteger PublicKey { get; private set; }
-
         public struct PublicKey
         {
             public BigInteger p;
